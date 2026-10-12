@@ -1,0 +1,7 @@
+bin/
+obj/
+# config with access token - never commit
+*.cfg
+# Code::Blocks user files
+*.depend
+*.layout
