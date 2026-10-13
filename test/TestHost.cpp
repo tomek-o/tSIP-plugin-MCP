@@ -194,6 +194,41 @@ int TSIP_V2_CALL Invoke(void *cookie, const char *method, const char *jsonParams
 			result = "{\"uid\":5,\"file\":\"C:\\\\test\\\\audio\\\\test.wav\",\"audioErrorCount\":0}";
 		}
 	}
+	else if (m == "SendCustomRequest")
+	{
+		if (params.find("\"uri\"") == std::string::npos && !ValidUid(GetUid(jsonParams)))
+			status = TSIP_ERR_NOT_AVAILABLE;
+		else
+			result = "{\"requestUid\":3}";
+	}
+	else if (m == "GetCustomRequest")
+	{
+		// reply after ~0.3 s
+		static DWORD first = 0;
+		if (first == 0)
+			first = GetTickCount();
+		if (GetTickCount() - first < 300)
+			result = "{\"requestUid\":3,\"haveReply\":false}";
+		else
+		{
+			first = 0;
+			result = "{\"requestUid\":3,\"haveReply\":true,\"transportError\":0,\"sipStatusCode\":200,"
+				"\"reply\":\"SIP/2.0 200 OK\\r\\n\\r\\n\"}";
+		}
+	}
+	else if (m == "DeleteCustomRequest")
+	{
+		result = "{}";
+	}
+	else if (m == "GetCallInvite")
+	{
+		if (!ValidUid(GetUid(jsonParams)))
+			status = TSIP_ERR_NOT_AVAILABLE;
+		else
+			result = "{\"uid\":5,\"incoming\":true,\"invite\":\"INVITE sip:100@127.0.0.1 SIP/2.0\\r\\n"
+				"f: \\\"Alice\\\" <sip:200@127.0.0.1>;tag=1\\r\\nUser-Agent: test\\r\\nX-Case-Id: 42\\r\\n"
+				"Content-Length: 0\\r\\n\\r\\n\"}";
+	}
 	else if (m == "GetCallAudioState")
 	{
 		// fake WAV file: 1 s long

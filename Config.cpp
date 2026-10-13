@@ -1,6 +1,7 @@
 #include "Config.h"
 
 #include <windows.h>
+#include <ctype.h>
 #include <bcrypt.h>
 #include <json/json.h>
 #include <fstream>
@@ -61,6 +62,16 @@ bool StartsWith(const std::string &text, const std::string &prefix)
 
 }	// namespace
 
+namespace {
+std::string ToLower(const std::string &s)
+{
+	std::string ret = s;
+	for (size_t i = 0; i < ret.size(); i++)
+		ret[i] = static_cast<char>(tolower(static_cast<unsigned char>(ret[i])));
+	return ret;
+}
+}	// namespace
+
 Config::Config(void):
 	port(8765),
 	confirmCalls(true),
@@ -68,6 +79,15 @@ Config::Config(void):
 	activityStatus(ACTIVITY_ALL),
 	activityStatusSeconds(10)
 {
+	// headers carrying call metadata / auto-answer hints; identity headers
+	// (P-Asserted-Identity, Privacy, Diversion, ...) need explicit configuration
+	allowedCallHeaders.push_back("X-*");
+	allowedCallHeaders.push_back("Subject");
+	allowedCallHeaders.push_back("Call-Info");
+	allowedCallHeaders.push_back("Alert-Info");
+	allowedCallHeaders.push_back("Priority");
+	allowedRequestMethods.push_back("OPTIONS");
+	allowedRequestMethods.push_back("INFO");
 }
 
 int Config::Load(const std::string &path)
@@ -116,6 +136,16 @@ int Config::Load(const std::string &path)
 	ReadStringArray(root["allowPrefixes"], allowPrefixes);
 	ReadStringArray(root["denyPrefixes"], denyPrefixes);
 	ReadStringArray(root["enabledTools"], enabledTools);
+	if (root.isMember("allowedCallHeaders"))
+	{
+		allowedCallHeaders.clear();
+		ReadStringArray(root["allowedCallHeaders"], allowedCallHeaders);
+	}
+	if (root.isMember("allowedRequestMethods"))
+	{
+		allowedRequestMethods.clear();
+		ReadStringArray(root["allowedRequestMethods"], allowedRequestMethods);
+	}
 	return LOAD_OK;
 }
 
@@ -132,6 +162,8 @@ int Config::Save(const std::string &path) const
 	root["allowPrefixes"] = WriteStringArray(allowPrefixes);
 	root["denyPrefixes"] = WriteStringArray(denyPrefixes);
 	root["enabledTools"] = WriteStringArray(enabledTools);
+	root["allowedCallHeaders"] = WriteStringArray(allowedCallHeaders);
+	root["allowedRequestMethods"] = WriteStringArray(allowedRequestMethods);
 
 	Json::StyledWriter writer;
 	std::ofstream ofs(path.c_str(), std::ios::binary);
@@ -160,6 +192,8 @@ bool Config::EnsureToken(void)
 bool Config::IsToolEnabled(const std::string &name) const
 {
 	if (name == "run_script" && !allowRunScript)
+		return false;
+	if (name == "send_sip_request" && allowedRequestMethods.empty())
 		return false;
 	if (enabledTools.empty())
 		return true;
@@ -217,4 +251,34 @@ std::string GetDllConfigPath(void)
 	if (dot != std::string::npos && (slash == std::string::npos || dot > slash))
 		p = p.substr(0, dot);
 	return p + ".cfg";
+}
+
+bool Config::IsRequestMethodAllowed(const std::string &method) const
+{
+	for (size_t i = 0; i < allowedRequestMethods.size(); i++)
+	{
+		if (allowedRequestMethods[i] == method)
+			return true;
+	}
+	return false;
+}
+
+bool Config::IsCallHeaderAllowed(const std::string &name) const
+{
+	std::string n = ToLower(name);
+	for (size_t i = 0; i < allowedCallHeaders.size(); i++)
+	{
+		std::string a = ToLower(allowedCallHeaders[i]);
+		if (!a.empty() && a[a.size() - 1] == '*')
+		{
+			a.erase(a.size() - 1);
+			if (n.size() > a.size() && n.compare(0, a.size(), a) == 0)
+				return true;
+		}
+		else if (n == a)
+		{
+			return true;
+		}
+	}
+	return false;
 }

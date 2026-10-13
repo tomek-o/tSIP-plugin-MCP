@@ -23,6 +23,12 @@ struct Config
 	std::vector<std::string> allowPrefixes;	///< if not empty: make_call allowed only for numbers starting with one of these
 	std::vector<std::string> denyPrefixes;	///< make_call denied for numbers starting with one of these
 	std::vector<std::string> enabledTools;	///< if not empty: only these tools are available
+	/** \brief Header names that make_call may add to INVITE (case-insensitive, trailing "*" = prefix);
+		empty: headers not allowed */
+	std::vector<std::string> allowedCallHeaders;
+	/** \brief SIP methods that send_sip_request may use (uppercase); empty: tool not available.
+		Default: OPTIONS, INFO. Note: e.g. NOTIFY with "Event: check-sync" may reboot / reprovision phones. */
+	std::vector<std::string> allowedRequestMethods;
 
 	Config(void);
 
@@ -43,6 +49,8 @@ struct Config
 	bool EnsureToken(void);
 
 	bool IsToolEnabled(const std::string &name) const;
+	bool IsCallHeaderAllowed(const std::string &name) const;
+	bool IsRequestMethodAllowed(const std::string &method) const;
 
 	/** \brief Check number against allow/deny prefixes
 		\param reason set to explanation if not allowed

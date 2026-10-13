@@ -7,7 +7,8 @@ rem
 rem MinGW location can be overridden with MINGW_BIN environment variable,
 rem default: Code::Blocks 25.03 bundled MinGW (GCC 14.2, 32-bit).
 rem
-rem Built DLL is copied to tSIP Debug_Build\phone and Release_Build\phone;
+rem Built DLL is copied (by Makefile, copy_to_tsip.bat) to both tSIP
+rem Debug_Build\phone and Release_Build\phone;
 rem tSIP application directory can be overridden with TSIP_DIR environment
 rem variable, default: ..\tSIP\tSIP (relative to this script).
 
@@ -73,25 +74,7 @@ if not errorlevel 1 (
 echo.
 echo OK: %OUTDIR%\MCP.dll
 
-rem Update plugin in tSIP build output directories (phone subdirectory),
-rem only for build directories that exist
-echo.
-set COPYFAILED=0
-for %%B in (Debug_Build Release_Build) do (
-	if exist "%TSIP_DIR%\%%B" (
-		if not exist "%TSIP_DIR%\%%B\phone" mkdir "%TSIP_DIR%\%%B\phone"
-		copy /y "%OUTDIR%\MCP.dll" "%TSIP_DIR%\%%B\phone\" >nul
-		if errorlevel 1 (
-			echo ERROR: failed to copy to %TSIP_DIR%\%%B\phone - is tSIP running?
-			set COPYFAILED=1
-		) else (
-			echo Updated %TSIP_DIR%\%%B\phone\MCP.dll
-		)
-	) else (
-		echo Skipped %TSIP_DIR%\%%B - directory not found
-	)
-)
-if "%COPYFAILED%"=="1" exit /b 1
-
+rem DLL is copied to tSIP Debug_Build\phone and Release_Build\phone by Makefile
+rem (copy_to_tsip.bat)
 echo Enable plugin in tSIP Settings / Plugins (if not enabled yet).
 exit /b 0

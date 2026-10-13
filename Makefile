@@ -4,7 +4,8 @@
 #   mingw32-make              release build -> bin/Release/MCP.dll
 #   mingw32-make CONFIG=debug debug build   -> bin/Debug/MCP.dll
 #   mingw32-make clean
-# or build.bat (sets MinGW path, runs make, copies DLL to tSIP).
+# or build.bat (sets MinGW path, runs make, checks DLL).
+# Built DLL is copied to tSIP Debug_Build\phone and Release_Build\phone (copy_to_tsip.bat).
 #
 # Keep source list and flags in sync with MCP.cbp (Code::Blocks project).
 
@@ -48,6 +49,8 @@ else
 endif
 
 TARGET = $(OUTDIR)/MCP.dll
+# marks successful copy to tSIP - copy is retried if it failed (e.g. DLL locked by running tSIP)
+COPY_STAMP = $(OUTDIR)/copied_to_tsip.stamp
 OBJECTS = $(addprefix $(OBJDIR)/,$(SOURCES:.cpp=.o))
 
 # create directory (cmd.exe syntax, backslashes)
@@ -55,7 +58,11 @@ mkdir_p = if not exist "$(subst /,\,$(1))" mkdir "$(subst /,\,$(1))"
 
 .PHONY: all clean testhost
 
-all: $(TARGET)
+all: $(TARGET) $(COPY_STAMP)
+
+$(COPY_STAMP): $(TARGET)
+	call copy_to_tsip.bat $(TARGET)
+	@echo.> "$(subst /,\,$@)"
 
 $(TARGET): $(OBJECTS)
 	@$(call mkdir_p,$(OUTDIR))

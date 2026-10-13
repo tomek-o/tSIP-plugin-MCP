@@ -46,6 +46,26 @@ Json::Value InvokeResult(const char *method, const Json::Value &params)
 	return TextResult(ToJsonText(result), false);
 }
 
+/** \brief Full SIP header name for compact form (RFC 3261 7.3.3 and extensions), or name itself */
+std::string FullHeaderName(const std::string &name)
+{
+	if (name.size() != 1)
+		return name;
+	static const char* const compact[][2] = {
+		{"a", "Accept-Contact"}, {"b", "Referred-By"}, {"c", "Content-Type"}, {"d", "Request-Disposition"},
+		{"e", "Content-Encoding"}, {"f", "From"}, {"i", "Call-ID"}, {"j", "Reject-Contact"},
+		{"k", "Supported"}, {"l", "Content-Length"}, {"m", "Contact"}, {"n", "Identity-Info"},
+		{"o", "Event"}, {"r", "Refer-To"}, {"s", "Subject"}, {"t", "To"}, {"u", "Allow-Events"},
+		{"v", "Via"}, {"x", "Session-Expires"}, {"y", "Identity"}
+	};
+	for (unsigned int i = 0; i < sizeof(compact)/sizeof(compact[0]); i++)
+	{
+		if (_stricmp(name.c_str(), compact[i][0]) == 0)
+			return compact[i][1];
+	}
+	return name;
+}
+
 Json::Value Property(const char *type, const char *description)
 {
 	Json::Value p(Json::objectValue);
@@ -130,6 +150,120 @@ Json::Value AudioSwitchProps(void)
 	props["device"] = Property("string", "Device name exactly as returned by list_audio_devices");
 	props["configured"] = Property("boolean", "true: switch back to device configured in tSIP settings (module/device ignored)");
 	return props;
+}
+
+/** \brief Check "headers" argument against allowedCallHeaders
+	\return error text, empty if OK
+*/
+std::string CheckHeaders(const Config &cfg, const Json::Value &headers)
+{
+	if (headers.isNull())
+		return "";
+	if (!headers.isObject())
+		return "headers must be an object {\"Name\":\"value\"}";
+	Json::Value::Members names = headers.getMemberNames();
+	for (size_t i = 0; i < names.size(); i++)
+	{
+		if (!cfg.IsCallHeaderAllowed(names[i]))
+			return "header \"" + names[i] + "\" is not allowed by plugin configuration (allowedCallHeaders)";
+		if (!headers[names[i]].isString())
+			return "value of header \"" + names[i] + "\" must be a string";
+	}
+	return "";
+}
+
+/** \brief send_sip_request: send custom request, wait for final reply */
+Json::Value SendSipRequest(const Config &cfg, const Json::Value &args)
+{
+	if (!args["method"].isString())
+		return TextResult("method (string) is required", true);
+	std::string method = args["method"].asString();
+	if (!cfg.IsRequestMethodAllowed(method))
+		return TextResult("method \"" + method + "\" is not allowed by plugin configuration (allowedRequestMethods)", true);
+	std::string error = CheckHeaders(cfg, args["headers"]);
+	if (!error.empty())
+		return TextResult(error, true);
+	Json::Value params(Json::objectValue);
+	params["method"] = method;
+	if (args["headers"].isObject() && !args["headers"].empty())
+		params["headers"] = args["headers"];
+	if (args["uri"].isString() && !args["uri"].asString().empty())
+	{
+		if (!args["uid"].isNull())
+			return TextResult("use either uri (out-of-dialog request) or uid (request within call), not both", true);
+		std::string uri = args["uri"].asString();
+		// OPTIONS: harmless query (capabilities / keep-alive) - no confirmation, prefix rules only
+		if (method == "OPTIONS")
+		{
+			std::string reason;
+			if (!cfg.IsNumberAllowed(uri, reason))
+				return TextResult("Not allowed: " + reason, true);
+		}
+		else
+		{
+			error = CheckTarget(cfg, "send_sip_request", (std::string("send SIP ") + method + " request to").c_str(), uri);
+			if (!error.empty())
+				return TextResult(error, true);
+		}
+		params["uri"] = uri;
+	}
+	else
+	{
+		if (!GetUid(args, params, error))
+			return TextResult(error, true);
+	}
+
+	Json::Value sent;
+	int status = HostInvoke("SendCustomRequest", params, sent);
+	if (status != TSIP_OK)
+	{
+		std::string text = std::string("tSIP returned error: ") + HostErrorName(status);
+		if (sent["error"].isString())
+			text += ": " + sent["error"].asString();
+		return TextResult(text, true);
+	}
+
+	// SIP transaction timeout (timer F / B) is 32 s
+	enum { MAX_WAIT_S = 40 };
+	int timeoutS = args["timeout"].isIntegral() ? args["timeout"].asInt() : 10;
+	if (timeoutS <= 0 || timeoutS > MAX_WAIT_S)
+		timeoutS = MAX_WAIT_S;
+	Json::Value getParams(Json::objectValue);
+	getParams["requestUid"] = sent["requestUid"];
+	getParams["delete"] = true;
+	DWORD start = GetTickCount();
+	while (GetTickCount() - start < static_cast<DWORD>(timeoutS) * 1000)
+	{
+		Sleep(100);
+		Json::Value state;
+		// fails also when plugin is being stopped (host cancels Invoke) - no blocking
+		if (HostInvoke("GetCustomRequest", getParams, state) != TSIP_OK)
+			return TextResult("request status not available (plugin stopping or request deleted by script)", true);
+		if (state["haveReply"].asBool())
+		{
+			Json::Value result(Json::objectValue);
+			int transportError = state["transportError"].asInt();
+			if (transportError != 0)
+			{
+				result["result"] = "error";
+				result["transportError"] = transportError;	// errno, e.g. 60 (ETIMEDOUT): no reply
+			}
+			else
+			{
+				result["result"] = "reply";
+				result["sipStatusCode"] = state["sipStatusCode"];
+				result["reply"] = state["reply"];
+			}
+			return TextResult(ToJsonText(result), false);
+		}
+	}
+	Json::Value delParams(Json::objectValue);
+	delParams["requestUid"] = sent["requestUid"];
+	Json::Value ignored;
+	HostInvoke("DeleteCustomRequest", delParams, ignored);
+	Json::Value result(Json::objectValue);
+	result["result"] = "timeout";
+	return TextResult(ToJsonText(result), false);
 }
 
 /** \brief play_audio_file: switch call input to WAV file, optionally wait for end and restore input */
@@ -322,6 +456,19 @@ Json::Value Tools::List(const Config &cfg)
 	{
 		Json::Value props(Json::objectValue);
 		props["target"] = Property("string", "Number or SIP URI to call, e.g. \"123\" or \"sip:alice@example.com\"");
+		if (!cfg.allowedCallHeaders.empty())
+		{
+			std::string allowed;
+			for (size_t i = 0; i < cfg.allowedCallHeaders.size(); i++)
+				allowed += (i ? ", " : "") + cfg.allowedCallHeaders[i];
+			std::string description =
+				"Optional extra SIP headers for INVITE as {\"Name\":\"value\"}, e.g. {\"Subject\":\"Order 123\"} or "
+				"{\"Call-Info\":\"<sip:x>;answer-after=0\"} (auto-answer request, if supported by called device). "
+				"Allowed names: " + allowed;
+			Json::Value headers = Property("object", description.c_str());
+			headers["additionalProperties"] = Property("string", "Header value");
+			props["headers"] = headers;
+		}
 		Json::Value required(Json::arrayValue);
 		required.append("target");
 		tools.append(Tool("make_call", "Make a call",
@@ -440,6 +587,46 @@ Json::Value Tools::List(const Config &cfg)
 			"Without wait: returns immediately, microphone stays replaced until set_call_audio_input "
 			"with configured = true. With wait: returns \"finished\", \"timeout\" or \"call ended\".",
 			props, required, false, false));
+	}
+	if (cfg.IsToolEnabled("send_sip_request"))
+	{
+		std::string methods;
+		for (size_t i = 0; i < cfg.allowedRequestMethods.size(); i++)
+			methods += (i ? ", " : "") + cfg.allowedRequestMethods[i];
+		Json::Value props(Json::objectValue);
+		std::string methodDescription = "SIP method, allowed: " + methods;
+		props["method"] = Property("string", methodDescription.c_str());
+		props["uri"] = Property("string", "Target SIP URI for out-of-dialog request (e.g. OPTIONS to check if "
+			"server / device responds); omit to send request within call dialog (uid)");
+		props["uid"] = Property("integer", "Call uid for request within call dialog (e.g. INFO); current call if "
+			"omitted (and uri not given)");
+		std::string headersDescription = "Optional extra headers {\"Name\":\"value\"}, e.g. {\"X-Command\":\"test\"}; "
+			"same allowed names as for make_call";
+		Json::Value headers = Property("object", headersDescription.c_str());
+		headers["additionalProperties"] = Property("string", "Header value");
+		props["headers"] = headers;
+		props["timeout"] = Property("integer", "Seconds to wait for final reply, default 10, max 40");
+		Json::Value required(Json::arrayValue);
+		required.append("method");
+		tools.append(Tool("send_sip_request", "Send SIP request",
+			"Send custom SIP request (no body) out-of-dialog to uri or within existing call, wait for final reply. "
+			"Result: \"reply\" with sipStatusCode and full reply text, \"error\" (transport error / no reply) "
+			"or \"timeout\". Requests other than OPTIONS to uri may require confirmation by the user.",
+			props, required, false, false));
+	}
+	if (cfg.IsToolEnabled("get_call_invite"))
+	{
+		Json::Value props(Json::objectValue);
+		props["uid"] = Property("integer", "Call uid (from get_calls); current call if omitted");
+		Json::Value headers = Property("array", "Optional: return only these headers (case-insensitive names, "
+			"e.g. [\"From\",\"P-Asserted-Identity\",\"User-Agent\"]) instead of full message");
+		headers["items"] = Property("string", "Header name");
+		props["headers"] = headers;
+		tools.append(Tool("get_call_invite", "Get incoming INVITE",
+			"Get full text of initial INVITE received for incoming call (SIP headers and SDP body), e.g. to check "
+			"caller identity headers, User-Agent, Alert-Info, custom X- headers or offered codecs. "
+			"Not available for outgoing calls.",
+			props, Json::Value(Json::arrayValue), true, false));
 	}
 	if (cfg.IsToolEnabled("get_audio_level"))
 	{
@@ -612,10 +799,16 @@ Json::Value Tools::Call(const Config &cfg, const std::string &name, const Json::
 		if (!target.isString() || target.asString().empty())
 			return TextResult("target (string) is required", true);
 		std::string t = target.asString();
-		std::string error = CheckTarget(cfg, "make_call", "make a call to", t);
+		Json::Value params(Json::objectValue);
+		const Json::Value &headers = args["headers"];
+		std::string error = CheckHeaders(cfg, headers);
 		if (!error.empty())
 			return TextResult(error, true);
-		Json::Value params(Json::objectValue);
+		if (headers.isObject() && !headers.empty())
+			params["headers"] = headers;
+		error = CheckTarget(cfg, "make_call", "make a call to", t);
+		if (!error.empty())
+			return TextResult(error, true);
 		params["target"] = t;
 		return InvokeResult("Call", params);
 	}
@@ -665,6 +858,66 @@ Json::Value Tools::Call(const Config &cfg, const std::string &name, const Json::
 			return TextResult(error, true);
 		params["target"] = t;
 		return InvokeResult("Transfer", params);
+	}
+	else if (name == "send_sip_request")
+	{
+		return SendSipRequest(cfg, args);
+	}
+	else if (name == "get_call_invite")
+	{
+		Json::Value params(Json::objectValue);
+		std::string error;
+		if (!GetUid(args, params, error))
+			return TextResult(error, true);
+		const Json::Value &filter = args["headers"];
+		if (!filter.isNull() && !filter.isArray())
+			return TextResult("headers must be an array of header names", true);
+		Json::Value state;
+		int status = HostInvoke("GetCallInvite", params, state);
+		if (status != TSIP_OK)
+			return TextResult(std::string("tSIP returned error: ") + HostErrorName(status), true);
+		if (!state["invite"].isString())
+			return TextResult("tSIP does not support GetCallInvite (version too old?)", true);
+		std::string invite = state["invite"].asString();
+		if (invite.empty())
+			return TextResult(state["incoming"].asBool() ? "INVITE text not available for this call" :
+				"call is outgoing - there is no received INVITE", true);
+		if (filter.isNull() || filter.empty())
+			return TextResult(invite, false);
+		// selected headers only (header part, unfolded lines not handled - not used in practice)
+		Json::Value result(Json::objectValue);
+		size_t pos = 0;
+		while (pos < invite.size())
+		{
+			size_t end = invite.find('\n', pos);
+			if (end == std::string::npos)
+				end = invite.size();
+			std::string line = invite.substr(pos, end - pos);
+			pos = end + 1;
+			if (!line.empty() && line[line.size() - 1] == '\r')
+				line.erase(line.size() - 1);
+			if (line.empty())
+				break;	// end of headers
+			size_t colon = line.find(':');
+			if (colon == std::string::npos)
+				continue;
+			std::string name = line.substr(0, colon);
+			while (!name.empty() && name[name.size() - 1] == ' ')
+				name.erase(name.size() - 1);
+			std::string value = line.substr(colon + 1);
+			while (!value.empty() && value[0] == ' ')
+				value.erase(0, 1);
+			for (unsigned int i = 0; i < filter.size(); i++)
+			{
+				if (filter[i].isString() &&
+					_stricmp(FullHeaderName(filter[i].asString()).c_str(), FullHeaderName(name).c_str()) == 0)
+				{
+					result[filter[i].asString()].append(value);
+					break;
+				}
+			}
+		}
+		return TextResult(ToJsonText(result), false);
 	}
 	else if (name == "get_audio_level")
 	{

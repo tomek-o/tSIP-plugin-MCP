@@ -43,6 +43,10 @@
 			<Add directory="jsoncpp/include" />
 			<Add directory="../tSIP/tSIP/phone" />
 		</Compiler>
+		<ExtraCommands>
+			<Add after="cmd /c copy_to_tsip.bat $(TARGET_OUTPUT_FILE)" />
+			<Mode after="always" />
+		</ExtraCommands>
 		<Linker>
 			<Add option="-static" />
 			<Add option="-Wl,--add-stdcall-alias" />
