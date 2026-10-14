@@ -187,6 +187,12 @@ Json::Value SendSipRequest(const Config &cfg, const Json::Value &args)
 	params["method"] = method;
 	if (args["headers"].isObject() && !args["headers"].empty())
 		params["headers"] = args["headers"];
+	if (args["accountId"].isIntegral())
+	{
+		if (!args["uri"].isString())
+			return TextResult("accountId applies only to out-of-dialog request (uri); request within call uses account of the call", true);
+		params["accountId"] = args["accountId"].asInt();
+	}
 	if (args["uri"].isString() && !args["uri"].asString().empty())
 	{
 		if (!args["uid"].isNull())
@@ -414,14 +420,26 @@ Json::Value Tools::List(const Config &cfg)
 	if (cfg.IsToolEnabled("get_calls"))
 	{
 		tools.append(Tool("get_calls", "List active calls",
-			"List active calls in tSIP softphone: uid, direction (incoming), state, peer URI and peer display name.",
+			"List active calls in tSIP softphone: uid, direction (incoming), state, peer URI, peer display name "
+			"and accountId (account used by call / account that received incoming call).",
 			Json::Value(Json::objectValue), none, true, false));
 	}
 	if (cfg.IsToolEnabled("get_registration"))
 	{
-		tools.append(Tool("get_registration", "Get registration state",
-			"Get SIP registration state of tSIP accounts (registered or not, state name).",
+		tools.append(Tool("get_registration", "Get accounts and registration state",
+			"Get configured SIP accounts of tSIP: accountId, name, user, server, enabled, current (account used "
+			"by default for outgoing calls / messages) and registration state; also currentAccountId.",
 			Json::Value(Json::objectValue), none, true, false));
+	}
+	if (cfg.IsToolEnabled("set_current_account"))
+	{
+		Json::Value props(Json::objectValue);
+		props["accountId"] = Property("integer", "Account (accountId from get_registration)");
+		Json::Value required(Json::arrayValue);
+		required.append("accountId");
+		tools.append(Tool("set_current_account", "Set current account",
+			"Select account used by default for outgoing calls and messages in tSIP (same as ACCOUNT button).",
+			props, required, false, false));
 	}
 	if (cfg.IsToolEnabled("get_history"))
 	{
@@ -469,6 +487,8 @@ Json::Value Tools::List(const Config &cfg)
 			headers["additionalProperties"] = Property("string", "Header value");
 			props["headers"] = headers;
 		}
+		props["accountId"] = Property("integer", "Account (accountId from get_registration) used for the call; "
+			"current account if omitted");
 		Json::Value required(Json::arrayValue);
 		required.append("target");
 		tools.append(Tool("make_call", "Make a call",
@@ -606,6 +626,8 @@ Json::Value Tools::List(const Config &cfg)
 		headers["additionalProperties"] = Property("string", "Header value");
 		props["headers"] = headers;
 		props["timeout"] = Property("integer", "Seconds to wait for final reply, default 10, max 40");
+		props["accountId"] = Property("integer", "Account (accountId from get_registration) used for out-of-dialog "
+			"request; current account if omitted");
 		Json::Value required(Json::arrayValue);
 		required.append("method");
 		tools.append(Tool("send_sip_request", "Send SIP request",
@@ -701,6 +723,8 @@ Json::Value Tools::List(const Config &cfg)
 		Json::Value props(Json::objectValue);
 		props["target"] = Property("string", "Number or SIP URI");
 		props["text"] = Property("string", "Message text");
+		props["accountId"] = Property("integer", "Account (accountId from get_registration) used for sending; "
+			"current account if omitted");
 		Json::Value required(Json::arrayValue);
 		required.append("target");
 		required.append("text");
@@ -772,6 +796,14 @@ Json::Value Tools::Call(const Config &cfg, const std::string &name, const Json::
 	{
 		return InvokeResult("GetRegistration", Json::Value(Json::objectValue));
 	}
+	else if (name == "set_current_account")
+	{
+		if (!args["accountId"].isIntegral())
+			return TextResult("accountId (integer) is required", true);
+		Json::Value params(Json::objectValue);
+		params["accountId"] = args["accountId"].asInt();
+		return InvokeResult("SetCurrentAccount", params);
+	}
 	else if (name == "get_history")
 	{
 		Json::Value params(Json::objectValue);
@@ -810,6 +842,8 @@ Json::Value Tools::Call(const Config &cfg, const std::string &name, const Json::
 		if (!error.empty())
 			return TextResult(error, true);
 		params["target"] = t;
+		if (args["accountId"].isIntegral())
+			params["accountId"] = args["accountId"].asInt();
 		return InvokeResult("Call", params);
 	}
 	else if (name == "wait_for_call")
@@ -1006,6 +1040,8 @@ Json::Value Tools::Call(const Config &cfg, const std::string &name, const Json::
 		Json::Value params(Json::objectValue);
 		params["target"] = t;
 		params["text"] = args["text"].asString();
+		if (args["accountId"].isIntegral())
+			params["accountId"] = args["accountId"].asInt();
 		return InvokeResult("SendMessage", params);
 	}
 	else if (name == "get_messages")

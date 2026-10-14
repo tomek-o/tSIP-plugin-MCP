@@ -109,7 +109,20 @@ int TSIP_V2_CALL Invoke(void *cookie, const char *method, const char *jsonParams
 		result += "]}";
 	}
 	else if (m == "GetRegistration")
-		result = "{\"accounts\":[{\"accountId\":0,\"registered\":true,\"state\":2,\"stateName\":\"REGISTER_OK\"}]}";
+		result = "{\"accounts\":[{\"accountId\":0,\"current\":true,\"enabled\":true,\"name\":\"Office\","
+			"\"registered\":true,\"server\":\"example.com\",\"state\":2,\"stateName\":\"REGISTER_OK\",\"user\":\"100\"},"
+			"{\"accountId\":1,\"current\":false,\"enabled\":true,\"name\":\"\",\"registered\":false,"
+			"\"server\":\"other.com\",\"user\":\"200\"}],\"currentAccountId\":0}";
+	else if (m == "SetCurrentAccount")
+	{
+		if (params.find("\"accountId\":1") != std::string::npos)
+			result = "{\"currentAccountId\":1}";
+		else
+		{
+			status = TSIP_ERR_INVALID_ARG;
+			result = "{\"error\":\"account does not exist or is disabled\"}";
+		}
+	}
 	else if (m == "GetHistory")
 		result = "{\"entries\":[{\"timestamp\":\"2026-01-02 03:04:05\",\"incoming\":true,\"missed\":true,"
 			"\"duration\":0,\"uri\":\"123\",\"peerName\":\"Zażółć\",\"contactName\":\"Test Contact\"}]}";

@@ -13,10 +13,11 @@ what am I doing here?
 |---------------|----------------------------------------------------------|
 | `get_app_info`| tSIP executable, profile directory, plugin interface     |
 | `get_calls`   | active calls: uid, direction, state, peer URI and name   |
-| `get_registration` | SIP registration state of accounts                  |
+| `get_registration` | configured accounts (accountId, name, user, server, current) and registration state |
+| `set_current_account` | select account used by default for outgoing calls / messages |
 | `get_history` | call history, newest first (limit, filter: all/incoming/outgoing/missed, search) |
 | `search_contacts` | phonebook search (query, limit): name, numbers, company, note |
-| `make_call`   | start outgoing call (target: number or SIP URI)          |
+| `make_call`   | start outgoing call (target: number or SIP URI; optional `accountId`, current account by default) |
 | `answer_call` | answer incoming call (uid optional: current call)        |
 | `hangup_call` | hang up / reject call (uid, sipCode, reason optional)    |
 | `wait_for_call` | wait (max 60 s) until call is answered / ended or new incoming call arrives |
