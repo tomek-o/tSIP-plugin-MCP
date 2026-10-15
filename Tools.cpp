@@ -759,6 +759,14 @@ Json::Value Tools::List(const Config &cfg)
 			"Do not use functions showing dialogs (MessageBox, ShowMessage) - they block tSIP until closed.",
 			props, required, false, true));
 	}
+	if (cfg.IsToolEnabled("get_log"))
+	{
+		Json::Value props(Json::objectValue);
+		props["lines"] = Property("integer", "Number of last lines, default 50, max 1000");
+		tools.append(Tool("get_log", "Get tSIP log lines",
+			"Returns the last lines of the tSIP log window as text (newest last). Useful to check results of commands and errors.",
+			props, Json::Value(Json::arrayValue), true, false));
+	}
 	return tools;
 }
 
@@ -1079,6 +1087,18 @@ Json::Value Tools::Call(const Config &cfg, const std::string &name, const Json::
 		return InvokeResult("Hangup", params);
 	}
 
+	else if (name == "get_log")
+	{
+		int lines = args["lines"].isIntegral() ? args["lines"].asInt() : 50;
+		if (lines < 1)
+			lines = 1;
+		if (lines > 1000)
+			lines = 1000;
+		Json::Value params(Json::objectValue);
+		params["script"] = "return GetLogLines(" + std::to_string(lines) + ")";
+		params["async"] = false;
+		return InvokeResult("RunScript", params);
+	}
 	found = false;
 	return Json::Value();
 }

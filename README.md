@@ -38,6 +38,7 @@ what am I doing here?
 | `send_message` | send text message (SIP MESSAGE); same checks as `make_call` |
 | `get_messages` | text message history with peer                         |
 | `run_script`  | run Lua script - **only if `allowRunScript` is true** (default: false); returns `return` values and `print()` output, Lua errors as tool errors |
+| `get_log`     | last lines of the tSIP log window (`lines`, default 50, max 1000); needs tSIP built with `GetLogLines` |
 
 `get_history` and `search_contacts` give the MCP client access to personal
 data (who called, phonebook); disable them with `enabledTools` if not wanted.
