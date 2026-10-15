@@ -5,3 +5,4 @@ obj/
 # Code::Blocks user files
 *.depend
 *.layout
+*.bak
