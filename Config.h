@@ -13,6 +13,7 @@ struct Config
 	std::string token;			///< bearer token required from MCP client; generated if empty
 	bool confirmCalls;			///< ask user (message box) before tool starts / transfers a call or sends message
 	bool allowRunScript;		///< run_script tool (any Lua code) - disabled by default
+	bool allowConfigModification;	///< get_settings / set_settings tools (tSIP configuration) - disabled by default; separate from allowRunScript
 	enum ActivityStatus {
 		ACTIVITY_OFF = 0,
 		ACTIVITY_ACTIONS,		///< show only tools changing something (calls, DTMF, ...)

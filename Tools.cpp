@@ -745,6 +745,50 @@ Json::Value Tools::List(const Config &cfg)
 			"Get text message (SIP MESSAGE) history with given peer, oldest first: timestamp, direction, body.",
 			props, required, true, false));
 	}
+	if (cfg.IsToolEnabled("get_settings"))
+	{
+		Json::Value props(Json::objectValue);
+		props["section"] = Property("string", "top-level settings section, e.g. \"uaConf\", \"dialpad\", \"gui\"; omit for all");
+		tools.append(Tool("get_settings", "Get tSIP settings",
+			"Read global tSIP settings as JSON. Account passwords are returned as \"***\".",
+			props, Json::Value(Json::arrayValue), true, false));
+	}
+	if (cfg.IsToolEnabled("set_settings"))
+	{
+		Json::Value props(Json::objectValue);
+		props["settings"] = Property("object", "part of settings to change, same structure as get_settings; "
+			"objects are merged recursively, other values replace; send \"***\" to keep a password");
+		Json::Value required(Json::arrayValue);
+		required.append("settings");
+		tools.append(Tool("set_settings", "Change tSIP settings",
+			"Change global tSIP settings and save them. Result: \"changed\" - top-level sections that differ, "
+			"\"restartRequired\" - running components read most settings only at startup.",
+			props, required, false, false));
+	}
+	if (cfg.IsToolEnabled("get_button_settings"))
+	{
+		Json::Value props(Json::objectValue);
+		props["id"] = Property("integer", "button number (0-based index); omit for all buttons");
+		tools.append(Tool("get_button_settings", "Get button settings",
+			"Read programmable button configuration: type, caption, action parameters, position, colors. "
+			"Button number is the \"id\" field.",
+			props, Json::Value(Json::arrayValue), true, false));
+	}
+	if (cfg.IsToolEnabled("set_button_settings"))
+	{
+		Json::Value props(Json::objectValue);
+		props["id"] = Property("integer", "button number (0-based index)");
+		props["settings"] = Property("object", "part of button settings to change, same fields as get_button_settings; "
+			"merged into the current settings");
+		Json::Value required(Json::arrayValue);
+		required.append("id");
+		required.append("settings");
+		tools.append(Tool("set_button_settings", "Change button settings",
+			"Change one programmable button and save the buttons configuration. Result: \"changed\", "
+			"\"restartRequired\" - true for account or BLF changes that need a UA restart (not done automatically, "
+			"it would end active calls).",
+			props, required, false, false));
+	}
 	if (cfg.IsToolEnabled("run_script"))
 	{
 		Json::Value props(Json::objectValue);
@@ -1061,6 +1105,37 @@ Json::Value Tools::Call(const Config &cfg, const std::string &name, const Json::
 		if (args["limit"].isIntegral())
 			params["limit"] = args["limit"].asInt();
 		return InvokeResult("GetMessages", params);
+	}
+	else if (name == "get_settings")
+	{
+		Json::Value params(Json::objectValue);
+		if (args["section"].isString())
+			params["section"] = args["section"].asString();
+		return InvokeResult("GetSettings", params);
+	}
+	else if (name == "set_settings")
+	{
+		if (!args["settings"].isObject())
+			return TextResult("settings (object) is required", true);
+		Json::Value params(Json::objectValue);
+		params["settings"] = args["settings"];
+		return InvokeResult("SetSettings", params);
+	}
+	else if (name == "get_button_settings")
+	{
+		Json::Value params(Json::objectValue);
+		if (args.isMember("id"))
+			params["id"] = args["id"];
+		return InvokeResult("GetButtonSettings", params);
+	}
+	else if (name == "set_button_settings")
+	{
+		if (!args["id"].isIntegral() || !args["settings"].isObject())
+			return TextResult("id (integer) and settings (object) are required", true);
+		Json::Value params(Json::objectValue);
+		params["id"] = args["id"];
+		params["settings"] = args["settings"];
+		return InvokeResult("SetButtonSettings", params);
 	}
 	else if (name == "run_script")
 	{

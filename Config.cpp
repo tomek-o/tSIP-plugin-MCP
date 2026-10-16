@@ -76,6 +76,7 @@ Config::Config(void):
 	port(8765),
 	confirmCalls(true),
 	allowRunScript(false),
+	allowConfigModification(false),
 	activityStatus(ACTIVITY_ALL),
 	activityStatusSeconds(10)
 {
@@ -117,6 +118,8 @@ int Config::Load(const std::string &path)
 		confirmCalls = root["confirmCalls"].asBool();
 	if (root["allowRunScript"].isBool())
 		allowRunScript = root["allowRunScript"].asBool();
+	if (root["allowConfigModification"].isBool())
+		allowConfigModification = root["allowConfigModification"].asBool();
 	if (root["activityStatus"].isString())
 	{
 		std::string s = root["activityStatus"].asString();
@@ -156,6 +159,7 @@ int Config::Save(const std::string &path) const
 	root["token"] = token;
 	root["confirmCalls"] = confirmCalls;
 	root["allowRunScript"] = allowRunScript;
+	root["allowConfigModification"] = allowConfigModification;
 	static const char* const activityNames[] = { "off", "actions", "all" };
 	root["activityStatus"] = activityNames[activityStatus];
 	root["activityStatusSeconds"] = activityStatusSeconds;
@@ -192,6 +196,8 @@ bool Config::EnsureToken(void)
 bool Config::IsToolEnabled(const std::string &name) const
 {
 	if (name == "run_script" && !allowRunScript)
+		return false;
+	if ((name == "get_settings" || name == "set_settings" || name == "get_button_settings" || name == "set_button_settings") && !allowConfigModification)
 		return false;
 	if (name == "send_sip_request" && allowedRequestMethods.empty())
 		return false;

@@ -18,6 +18,7 @@ enum
 	IDC_REGENERATE,
 	IDC_CONFIRM_CALLS,
 	IDC_ALLOW_RUN_SCRIPT,
+	IDC_ALLOW_CONFIG_MODIFICATION,
 	IDC_ACTIVITY,
 	IDC_ACTIVITY_SECONDS,
 	IDC_DENY_PREFIXES,
@@ -191,6 +192,7 @@ void InitDialog(HWND dlg, DialogContext *ctx)
 	SetDlgItemTextA(dlg, IDC_TOKEN, cfg.token.c_str());
 	CheckDlgButton(dlg, IDC_CONFIRM_CALLS, cfg.confirmCalls ? BST_CHECKED : BST_UNCHECKED);
 	CheckDlgButton(dlg, IDC_ALLOW_RUN_SCRIPT, cfg.allowRunScript ? BST_CHECKED : BST_UNCHECKED);
+	CheckDlgButton(dlg, IDC_ALLOW_CONFIG_MODIFICATION, cfg.allowConfigModification ? BST_CHECKED : BST_UNCHECKED);
 
 	HWND combo = GetDlgItem(dlg, IDC_ACTIVITY);
 	SendMessageA(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>("off"));
@@ -255,6 +257,7 @@ bool ReadDialog(HWND dlg, DialogContext *ctx, Config &cfg)
 	cfg.token = GetText(dlg, IDC_TOKEN);
 	cfg.confirmCalls = IsDlgButtonChecked(dlg, IDC_CONFIRM_CALLS) == BST_CHECKED;
 	cfg.allowRunScript = IsDlgButtonChecked(dlg, IDC_ALLOW_RUN_SCRIPT) == BST_CHECKED;
+	cfg.allowConfigModification = IsDlgButtonChecked(dlg, IDC_ALLOW_CONFIG_MODIFICATION) == BST_CHECKED;
 	LRESULT sel = SendMessageA(GetDlgItem(dlg, IDC_ACTIVITY), CB_GETCURSEL, 0, 0);
 	if (sel >= Config::ACTIVITY_OFF && sel <= Config::ACTIVITY_ALL)
 		cfg.activityStatus = static_cast<Config::ActivityStatus>(sel);
@@ -340,6 +343,7 @@ bool SettingsDialog::Show(HWND parent, Config &cfg, const std::string &statusTex
 		// all tools known to this plugin version
 		Config all;
 		all.allowRunScript = true;
+		all.allowConfigModification = true;
 		Json::Value tools = Tools::List(all);
 		for (unsigned int i = 0; i < tools.size(); i++)
 			ctx.toolNames.push_back(tools[i]["name"].asString());
@@ -349,7 +353,7 @@ bool SettingsDialog::Show(HWND parent, Config &cfg, const std::string &statusTex
 	const short LX = 7;		// label x
 	const short CX = 82;	// control x
 	const short CW = W - CX - 7;
-	DialogTemplate t(L"MCP server plugin settings", W, 268);
+	DialogTemplate t(L"MCP server plugin settings", W, 292);
 	short y = 7;
 	t.AddItem(CLS_STATIC, SS_LEFT, LX, y, 72, 8, 0xFFFF, L"Status:");
 	t.AddItem(CLS_STATIC, SS_LEFT | SS_ENDELLIPSIS, CX, y, CW, 8, IDC_STATUS, L"");
@@ -369,6 +373,9 @@ bool SettingsDialog::Show(HWND parent, Config &cfg, const std::string &statusTex
 	y += 13;
 	t.AddItem(CLS_BUTTON, BS_AUTOCHECKBOX | WS_TABSTOP, LX, y, W - 14, 10, IDC_ALLOW_RUN_SCRIPT,
 		L"Allow run_script tool (Lua - full access to tSIP, no other checks)");
+	y += 13;
+	t.AddItem(CLS_BUTTON, BS_AUTOCHECKBOX | WS_TABSTOP, LX, y, W - 14, 10, IDC_ALLOW_CONFIG_MODIFICATION,
+		L"Allow settings and button tools (get/set_settings, get/set_button_settings)");
 	y += 16;
 	t.AddItem(CLS_STATIC, SS_LEFT, LX, y + 2, 72, 8, 0xFFFF, L"Activity status:");
 	t.AddItem(CLS_COMBOBOX, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, CX, y, 60, 60, IDC_ACTIVITY, L"");

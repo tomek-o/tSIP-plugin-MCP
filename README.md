@@ -37,6 +37,10 @@ what am I doing here?
 | `start_recording` | start call recording (settings from tSIP configuration) |
 | `send_message` | send text message (SIP MESSAGE); same checks as `make_call` |
 | `get_messages` | text message history with peer                         |
+| `get_settings` | global tSIP settings as JSON (optional `section`); account passwords as `***` - **only if `allowConfigModification` is true** (default: false) |
+| `get_button_settings` | programmable buttons configuration (one by `id`, or all) - **only if `allowConfigModification` is true** |
+| `set_button_settings` | change one button by `id`, saved to the buttons file; `restartRequired` for account / BLF changes - **only if `allowConfigModification` is true** |
+| `set_settings` | merge JSON into global tSIP settings and save them; result lists changed sections and `restartRequired` - **only if `allowConfigModification` is true** (default: false) |
 | `run_script`  | run Lua script - **only if `allowRunScript` is true** (default: false); returns `return` values and `print()` output, Lua errors as tool errors |
 | `get_log`     | last lines of the tSIP log window (`lines`, default 50, max 1000); needs tSIP built with `GetLogLines` |
 
@@ -87,6 +91,9 @@ Templates for common tasks (MCP prompts; in Claude Code available as
   e.g. "AI (MCP): make_call 123", for `activityStatusSeconds` (default 10)
   after last call; `"all"` (default), `"actions"` (only tools changing
   something - not get_* / search_contacts) or `"off"`.
+- `allowConfigModification` (default: false): `get_settings` and `set_settings` tools
+  are not available unless true. Independent of `allowRunScript`. The plugin's own
+  settings (`MCP.cfg`) are not reachable from these tools.
 - `allowRunScript` (default: false): `run_script` tool is not available unless
   enabled - Lua scripts have full access to tSIP (calls, settings, files,
   executing programs), so prefix checks and confirmation do not apply there.
