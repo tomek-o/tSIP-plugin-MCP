@@ -1,0 +1,31 @@
+#include <windows.h>
+
+// version information of MCP.dll (shown in Explorer: Properties / Details)
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 1,0,0,0
+PRODUCTVERSION 1,0,0,0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS 0
+FILEOS VOS__WINDOWS32
+FILETYPE VFT_DLL
+FILESUBTYPE 0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription", "tSIP MCP server plugin"
+            VALUE "FileVersion", "1.0"
+            VALUE "InternalName", "MCP"
+            VALUE "OriginalFilename", "MCP.dll"
+            VALUE "ProductName", "tSIP MCP server plugin"
+            VALUE "ProductVersion", "1.0"
+            VALUE "Comments", "Model Context Protocol server for AI clients: tSIP calls, history, contacts, log, scripts; local HTTP endpoint 127.0.0.1:8765/mcp; www.tomeko.net"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 0x04B0
+    END
+END

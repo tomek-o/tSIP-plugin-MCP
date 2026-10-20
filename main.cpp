@@ -67,7 +67,7 @@ std::string GetUrl(void)
 
 const char* TSIP_V2_CALL GetMetadata(void)
 {
-	return "{\"name\":\"MCP server\",\"version\":\"0.1\","
+	return "{\"name\":\"MCP server\",\"version\":\"1.0\","
 		"\"description\":\"Model Context Protocol server: tSIP functions as tools for AI clients\"}";
 }
 

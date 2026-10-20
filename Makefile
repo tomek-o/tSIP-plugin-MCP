@@ -64,9 +64,14 @@ $(COPY_STAMP): $(TARGET)
 	call copy_to_tsip.bat $(TARGET)
 	@echo.> "$(subst /,\,$@)"
 
-$(TARGET): $(OBJECTS)
+$(TARGET): $(OBJECTS) $(OBJDIR)/version.o
 	@$(call mkdir_p,$(OUTDIR))
-	$(CXX) $(LDFLAGS) -o $@ $(OBJECTS) $(LIBS)
+	$(CXX) $(LDFLAGS) -o $@ $(OBJECTS) $(OBJDIR)/version.o $(LIBS)
+
+# version information resource (version.rc: FileVersion / ProductVersion 1.0)
+$(OBJDIR)/version.o: version.rc
+	@$(call mkdir_p,$(OBJDIR))
+	windres -O coff $< -o $@
 
 # bundled third-party jsoncpp: do not report its (harmless) unused parameter warnings
 $(OBJDIR)/jsoncpp/%.o: CXXFLAGS += -Wno-unused-parameter

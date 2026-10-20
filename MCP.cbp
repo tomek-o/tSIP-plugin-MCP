@@ -88,6 +88,9 @@
 			<Option compiler="gcc" use="1" buildCommand="$compiler $options -Wno-unused-parameter $includes -c $file -o $object" />
 		</Unit>
 		<Unit filename="main.cpp" />
+		<Unit filename="version.rc">
+			<Option compilerVar="WINDRES" />
+		</Unit>
 		<Unit filename="../tSIP/tSIP/phone/tSIP_plugin_v2.h" />
 		<Extensions />
 	</Project>
